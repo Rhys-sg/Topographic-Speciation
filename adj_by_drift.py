@@ -6,6 +6,13 @@ def adj_by_drift(curr_genotypes_data, max_drift, N, K):
     adj_drift is inversely relative to the population size with respect to carrying capacity.
 
     """
+    if K == 0:
+        for data in curr_genotypes_data.values():
+            data['Nm'] = 0
+            data['Nf'] = 0
+    
+        return curr_genotypes_data
+
 
     adj_drift = max_drift * (1 - (N / K))
     for data in curr_genotypes_data.values():

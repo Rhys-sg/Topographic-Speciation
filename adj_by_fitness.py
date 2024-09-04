@@ -1,10 +1,10 @@
-def adj_by_fitness(curr_genotypes_data):
+def adj_by_fitness(curr_genotypes_data, topographical_fitnesses, x, y):
     """
     Adjust genotype counts by their fitness.
 
     """
-    for data in curr_genotypes_data.values():
-        data['Nm'] = round(data['Nf'] * data['fitness'])
-        data['Nm'] = round(data['Nm'] * data['fitness'])
+    for genotype, data in curr_genotypes_data.items():
+        data['Nm'] = round(data['Nm'] * topographical_fitnesses[genotype][x][y])
+        data['Nf'] = round(data['Nf'] * topographical_fitnesses[genotype][x][y])
     
     return curr_genotypes_data

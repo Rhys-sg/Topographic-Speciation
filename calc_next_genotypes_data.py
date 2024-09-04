@@ -4,10 +4,13 @@ from calc_N import calc_N
 def calc_next_genotypes_data(curr_genotypes_data, next_N):
     N = calc_N(curr_genotypes_data)
 
+    if N == 0:
+        return curr_genotypes_data
+
     # Initialize next generation genotype data with 0 for Nm and Nf
     next_genotypes_data = {}
     for genotype, data in curr_genotypes_data.items():
-        next_genotypes_data[genotype] = {'Nm': 0, 'Nf': 0, 'fitness': data['fitness'], 'covariance': data['covariance']}
+        next_genotypes_data[genotype] = {'Nm': 0, 'Nf': 0, 'covariance': data['covariance']}
 
     # Iterate over all pairs of parent genotypes
     for genotype_A, data_A in curr_genotypes_data.items():
@@ -34,6 +37,9 @@ def calc_next_genotypes_data(curr_genotypes_data, next_N):
 
     # Normalize the frequencies to ensure they add up to 1
     total_frequency = sum([data['Nm'] + data['Nf'] for data in next_genotypes_data.values()])
+    if total_frequency == 0:
+        return next_genotypes_data
+    
     for genotype, data in next_genotypes_data.items():
         data['Nm'] /= total_frequency
         data['Nf'] /= total_frequency

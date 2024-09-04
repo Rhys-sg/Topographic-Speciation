@@ -1,31 +1,65 @@
 import itertools
-from collections import defaultdict
-import random
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 
 from topographical_map import TopographicMap
+from cell import Cell
+
+# popgen functions
+from calc_N import calc_N
+from calc_next_N import calc_next_N
+from calc_N_sub import calc_N_sub
+
+from adj_by_fitness import adj_by_fitness
+from adj_by_drift import adj_by_drift
+from adj_by_mutation import adj_by_mutation
+
+from calc_next_genotypes_data import calc_next_genotypes_data
+
+from calc_genotype_counts import calc_genotype_counts
+from calc_genotype_frequencies import calc_genotype_frequencies
+from calc_allele_counts import calc_allele_counts
+from calc_allele_frequencies import calc_allele_frequencies
+from calc_population_sizes import calc_population_sizes
+from calc_avgerage_fitness import calc_avgerage_fitness
+
+from calc_Ne import calc_Ne_over_generations
+
+from animator import Animator
 
 
 class TopographicalSpeciation:
-    def __init__(self, width, height, N, smoothness=1.0, loci=1, alleles=2):
+    def __init__(self, width, height, N, K, smoothness=1.0, loci=1, alleles=2, growth_rate=0, max_drift=0, mutation_rate=None):
         self.width = width
         self.height = height
         self.N = N
+        self.K = K
         self.smoothness = smoothness
         self.loci = loci
         self.alleles = alleles
 
+        self.growth_rate = growth_rate
+        self.max_drift = max_drift
+        self.mutation_rate = mutation_rate
+
+        self.generations = 0
+
         self.genotypes = self.generate_genotypes(self.alleles, self.loci)
-        self.carrying_capacity = TopographicMap(self.width, self.height, 'Carrying Capacity', self.smoothness)
         self.cells = self.generate_cells()
         self.topographical_fitnesses = self.generate_topographical_fitnesses()
 
     def generate_cells(self):
         cells = [[None for _ in range(self.width)] for _ in range(self.height)]
 
+        carrying_capacity_map = TopographicMap(self.width, self.height, 'Carrying Capacity', self.smoothness)
+
         init_cell_N = self.N / (self.width * self.height)
+        total = sum([carrying_capacity_map.map_data[y][x] for x in range(self.width) for y in range(self.height)])
         for x in range(self.width):
             for y in range(self.height):
-                cells[y][x] = Cell(x, y, init_cell_N/2, init_cell_N/2, self.genotypes, self.carrying_capacity.map_data[y][x])
+                carrying_capacity = (carrying_capacity_map.map_data[y][x] / total) * self.K
+                cells[y][x] = Cell(x, y, init_cell_N/2, init_cell_N/2, self.genotypes, carrying_capacity)
 
         return cells
     
@@ -48,61 +82,69 @@ class TopographicalSpeciation:
         return list(itertools.product(*all_locus_combinations))
     
     def run(self, generations, bottleneck_yr=None, bottleneck_N=None):
+        self.generations += generations
+
         for i in range(generations):
             self.calc_generation(i, bottleneck_yr, bottleneck_N)
         
         return self.cells
 
     def calc_generation(self, i, bottleneck_yr=None, bottleneck_N=None):
-        pass
+        for x in range(self.width):
+            for y in range(self.height):
+                cell = self.cells[y][x]
+
+                curr_genotypes_data = cell.gens_genotype_data[-1]
+
+                next_N = calc_next_N(calc_N(curr_genotypes_data), self.growth_rate, cell.carrying_capacity)
+
+                # Apply evolutionary forces to genotypes in the current generation
+                curr_genotypes_data = adj_by_fitness(curr_genotypes_data, self.topographical_fitnesses, x, y)
+                curr_genotypes_data = adj_by_drift(curr_genotypes_data, self.max_drift, calc_N(curr_genotypes_data), cell.carrying_capacity)
+
+                # If bottleneck, adjust population size, apply drift
+                if bottleneck_yr == i and next_N > bottleneck_N:
+                    curr_genotypes_data = adj_by_drift(curr_genotypes_data, 1-bottleneck_N/next_N, bottleneck_N, cell.carrying_capacity)
+                    next_N = bottleneck_N
+
+                # Calculate the next generation
+                curr_genotypes_data = calc_next_genotypes_data(curr_genotypes_data, next_N)
+                curr_genotypes_data = adj_by_mutation(curr_genotypes_data, self.mutation_rate)
+
+                cell.gens_genotype_data.append(curr_genotypes_data)
 
 
-class Cell:
-    def __init__(self, x, y, Nm, Nf, genotypes, carrying_capacity):
-        self.x = x
-        self.y = y
-        self.Nm = Nm
-        self.Nf = Nf
-        self.genotypes = genotypes
-        self.carrying_capacity = carrying_capacity
+    def animate_gens_genotypes(self, genotypes=None):
+        if not genotypes:
+            genotypes = self.genotypes
 
-        self.genotype_data = self.generate_genotype_data()
+        Animator.animate_gens_genotypes(self, genotypes, self.cells, self.width, self.height, self.generations)
+    
 
-    def generate_genotype_data(self, covariance_avg=None, covariance_std=None):
+    def animate_gens_genotype_prevalence(self, genotypes=None, gradient=True):
+        if not genotypes:
+            genotypes = self.genotypes
+        
+        Animator.animate_gens_genotype_prevalence(self, genotypes, self.cells, self.width, self.height, self.generations, gradient)
 
-        genotype_data = defaultdict(lambda: {
-            'Nm':  self.Nm // len(self.genotypes), 
-            'Nf':  self.Nf // len(self.genotypes), 
-            'fitness': round(random.uniform(0, 1), 1),
-            'covariance': random.gauss(covariance_avg, covariance_std) if covariance_avg and covariance_std else 0
-        })
-
-        for genotype in self.genotypes:
-            sorted_genotype = tuple(tuple(sorted(pair)) for pair in genotype)
-            genotype_data[sorted_genotype]
-
-        # Set fitness to 1 for a random genotype to emulate relative fitness
-        random_genotype = random.choice(list(genotype_data.keys()))
-        genotype_data[random_genotype]['fitness'] = 1.0
-
-        return dict(genotype_data)
 
 
 if __name__ == "__main__":
     width = 50
     height = 50
-    N = 100
-    smoothness = 3
+    N = 20 * width * height
+    K = 200 * width * height
+    smoothness = 4
     loci = 1
     alleles = 2
 
-    topographical_speciation = TopographicalSpeciation(width, height, N, smoothness, loci, alleles)
-    # for each in topographical_speciation.topographical_fitnesses:
-    #     each.plot_map()
+    growth_rate = 1.1
+    mutation_rate=0.01
+    # max_drift=0.1
+    max_drift=0
 
-    # print(topographical_speciation.cells[0][0].genotype_data)
-    # for cell in topographical_speciation.cells:
-    #     for genotype, data in cell.items():
-    #         print(f"{genotype}: {data}")
+    ts = TopographicalSpeciation(width, height, N, K, smoothness, loci, alleles, growth_rate, max_drift, mutation_rate)
 
-    topographical_speciation.carrying_capacity.plot_map()
+    ts.run(20)
+    # ts.animate_gens_genotypes()
+    ts.animate_gens_genotype_prevalence()
