@@ -15,7 +15,7 @@ class TopographicMap:
         Generate a random topographical map for a fitness with a normal distribution from 0 to 1.
         """
         map_data = np.random.normal(0.5, 0.2, (self.width, self.height))
-        map_data = gaussian_filter(map_data, self.smoothness)
+        map_data = gaussian_filter(map_data, self.smoothness * ((self.width + self.height) // 2))
         map_data = (map_data - np.min(map_data)) / (np.max(map_data) - np.min(map_data))
         return map_data
 

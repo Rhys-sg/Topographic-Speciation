@@ -17,19 +17,19 @@ from adj_by_mutation import adj_by_mutation
 
 from calc_next_genotypes_data import calc_next_genotypes_data
 
-from calc_genotype_counts import calc_genotype_counts
-from calc_genotype_frequencies import calc_genotype_frequencies
-from calc_allele_counts import calc_allele_counts
-from calc_allele_frequencies import calc_allele_frequencies
-from calc_population_sizes import calc_population_sizes
-from calc_avgerage_fitness import calc_avgerage_fitness
-
-from calc_Ne import calc_Ne_over_generations
-
 from animator import Animator
 
-
 class TopographicalSpeciation:
+    """
+    A class to simulate the speciation of subpopulations in the cells of a 2d map.
+    The carrying capcity and the fitness of each genotype is determined by a randomly generated topographical map.
+
+    TODO:
+    - Implement gene flow
+    - Implement covariance
+    - Implement phisical barriers
+
+    """
     def __init__(self, width, height, N, K, smoothness=1.0, loci=1, alleles=2, growth_rate=0, max_drift=0, mutation_rate=None):
         self.width = width
         self.height = height
@@ -48,6 +48,8 @@ class TopographicalSpeciation:
         self.genotypes = self.generate_genotypes(self.alleles, self.loci)
         self.cells = self.generate_cells()
         self.topographical_fitnesses = self.generate_topographical_fitnesses()
+
+        self.animator = Animator()
 
     def generate_cells(self):
         cells = [[None for _ in range(self.width)] for _ in range(self.height)]
@@ -118,23 +120,23 @@ class TopographicalSpeciation:
         if not genotypes:
             genotypes = self.genotypes
 
-        Animator.animate_gens_genotypes(self, genotypes, self.cells, self.width, self.height, self.generations)
+        self.animator.animate_gens_genotypes(genotypes, self.cells, self.width, self.height, self.generations)
     
 
     def animate_gens_genotype_prevalence(self, genotypes=None, gradient=True):
         if not genotypes:
             genotypes = self.genotypes
         
-        Animator.animate_gens_genotype_prevalence(self, genotypes, self.cells, self.width, self.height, self.generations, gradient)
+        self.animator.animate_gens_genotype_prevalence(genotypes, self.cells, self.width, self.height, self.generations, gradient)
 
 
 
 if __name__ == "__main__":
-    width = 50
-    height = 50
+    width = 100
+    height = 100
     N = 20 * width * height
     K = 200 * width * height
-    smoothness = 4
+    smoothness = 0.1
     loci = 1
     alleles = 2
 
@@ -146,5 +148,5 @@ if __name__ == "__main__":
     ts = TopographicalSpeciation(width, height, N, K, smoothness, loci, alleles, growth_rate, max_drift, mutation_rate)
 
     ts.run(20)
-    # ts.animate_gens_genotypes()
+    ts.animate_gens_genotypes()
     ts.animate_gens_genotype_prevalence()
