@@ -1,7 +1,7 @@
 from generate_punnett_square import generate_punnett_square
 from calc_N import calc_N
 
-def calc_next_genotypes_data(curr_genotypes_data, next_N, growth_rate):
+def calc_next_genotypes_data(curr_genotypes_data, next_N):
     N = calc_N(curr_genotypes_data)
 
     if N == 0:
@@ -46,7 +46,7 @@ def calc_next_genotypes_data(curr_genotypes_data, next_N, growth_rate):
 
     # Turn the frequencies back into counts, applying the growth rate
     for genotype, data in next_genotypes_data.items():
-        data['Nm'] = round(data['Nm'] * next_N * growth_rate)
-        data['Nf'] = round(data['Nf'] * next_N * growth_rate)
+        data['Nm'] = round(data['Nm'] * next_N)
+        data['Nf'] = round(data['Nf'] * next_N)
 
     return next_genotypes_data

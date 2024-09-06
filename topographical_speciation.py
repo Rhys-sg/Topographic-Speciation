@@ -37,6 +37,7 @@ class TopographicalSpeciation:
         self.height = None
         self.N = None
         self.K = None
+        self.min_cell_K = 0
 
         self.smoothness = 1.0
         self.loci = 1
@@ -55,7 +56,12 @@ class TopographicalSpeciation:
         if self.width is None or self.height is None or self.N is None or self.K is None:
             raise ValueError("Width, height, N, and K must be set before generating fields.")
         
-        self.topographical_carrying_capacity = TopographicMap(self.width, self.height, 'Carrying Capacity', self.smoothness, sum_val=self.K)
+        self.topographical_carrying_capacity = TopographicMap(self.width,
+                                                              self.height,
+                                                              'Carrying Capacity',
+                                                              self.smoothness,
+                                                              min_val=self.min_cell_K,
+                                                              sum_val=self.K)
         self.genotypes = self.generate_genotypes(self.alleles, self.loci)
         self.cells = self.generate_cells()
 
@@ -123,7 +129,9 @@ class TopographicalSpeciation:
 
                 curr_genotypes_data = cell.gens_genotype_data[-1]
 
-                next_N = min(calc_N(curr_genotypes_data), cell.carrying_capacity)
+                # next_N = min(calc_N(curr_genotypes_data), cell.carrying_capacity)
+                next_N = calc_next_N(calc_N(curr_genotypes_data), self.growth_rate, cell.carrying_capacity)
+
 
                 # Apply evolutionary forces to genotypes in the current generation
                 curr_genotypes_data = adj_by_fitness(curr_genotypes_data, self.topographical_fitnesses, x, y)
@@ -135,7 +143,7 @@ class TopographicalSpeciation:
                     next_N = bottleneck_N
 
                 # Calculate the next generation
-                curr_genotypes_data = calc_next_genotypes_data(curr_genotypes_data, next_N, self.growth_rate)
+                curr_genotypes_data = calc_next_genotypes_data(curr_genotypes_data, next_N * self.growth_rate)
                 curr_genotypes_data = adj_by_mutation(curr_genotypes_data, self.mutation_rate)
 
                 # Update the current cell's last genotypes data
@@ -164,6 +172,7 @@ if __name__ == "__main__":
     ts.height = 20
     ts.N = 20 * ts.width * ts.height
     ts.K = 200 * ts.width * ts.height
+    ts.min_cell_K = 10
     ts.smoothness = 0.15
     ts.loci = 1
     ts.alleles = 2
@@ -174,4 +183,4 @@ if __name__ == "__main__":
 
     ts.run(30)
     ts.animate_gens_genotypes()
-    ts.animate_gens_genotype_prevalence()
+    # ts.animate_gens_genotype_prevalence()
