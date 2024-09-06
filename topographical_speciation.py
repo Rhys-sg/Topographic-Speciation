@@ -17,6 +17,8 @@ from adj_by_mutation import adj_by_mutation
 
 from calc_next_genotypes_data import calc_next_genotypes_data
 
+from append_cells import append_cells, append_gene_flow_cells
+
 from animator import Animator
 
 class TopographicalSpeciation:
@@ -25,51 +27,63 @@ class TopographicalSpeciation:
     The carrying capcity and the fitness of each genotype is determined by a randomly generated topographical map.
 
     TODO:
-    - Implement gene flow
     - Implement covariance
-    - Implement phisical barriers
+    - Implement physical barriers
+        - Use a topographical map to represent how far a population can move from that cell
 
     """
-    def __init__(self, width, height, N, K, smoothness=1.0, loci=1, alleles=2, growth_rate=0, max_drift=0, mutation_rate=None):
-        self.width = width
-        self.height = height
-        self.N = N
-        self.K = K
-        self.smoothness = smoothness
-        self.loci = loci
-        self.alleles = alleles
+    def __init__(self):
+        self.width = None
+        self.height = None
+        self.N = None
+        self.K = None
 
-        self.growth_rate = growth_rate
-        self.max_drift = max_drift
-        self.mutation_rate = mutation_rate
+        self.smoothness = 1.0
+        self.loci = 1
+        self.alleles = 2
+
+        self.growth_rate = 0
+        self.max_drift = 0
+        self.max_gene_flow_distance = 0
+        self.mutation_rate = None
 
         self.generations = 0
 
+        self.animator = Animator()
+
+    def generate_fields(self):
+        if self.width is None or self.height is None or self.N is None or self.K is None:
+            raise ValueError("Width, height, N, and K must be set before generating fields.")
+        
+        self.topographical_carrying_capacity = TopographicMap(self.width, self.height, 'Carrying Capacity', self.smoothness, sum_val=self.K)
         self.genotypes = self.generate_genotypes(self.alleles, self.loci)
         self.cells = self.generate_cells()
-        self.topographical_fitnesses = self.generate_topographical_fitnesses()
 
-        self.animator = Animator()
+        self.topographical_fitnesses = self.generate_topographical_map_for_genotype()
+        self.topographical_gene_flow_distance = self.generate_topographical_map_for_genotype(max_val=self.max_gene_flow_distance)
 
     def generate_cells(self):
         cells = [[None for _ in range(self.width)] for _ in range(self.height)]
 
-        carrying_capacity_map = TopographicMap(self.width, self.height, 'Carrying Capacity', self.smoothness)
-
-        init_cell_N = self.N / (self.width * self.height)
-        total = sum([carrying_capacity_map.map_data[y][x] for x in range(self.width) for y in range(self.height)])
+        cell_N = self.N / (self.width * self.height)
         for x in range(self.width):
             for y in range(self.height):
-                carrying_capacity = (carrying_capacity_map.map_data[y][x] / total) * self.K
-                cells[y][x] = Cell(x, y, init_cell_N/2, init_cell_N/2, self.genotypes, carrying_capacity)
+                carrying_capacity = self.topographical_carrying_capacity[y][x]
+                cells[y][x] = Cell(x, y, cell_N/2, cell_N/2, self.genotypes, carrying_capacity)
 
         return cells
     
-    def generate_topographical_fitnesses(self):
-        topographical_fitnesses = {}
+    def generate_topographical_map_for_genotype(self, min_val=0, max_val=1, sum_val=None):
+        topographical_maps = {}
         for genotype in self.genotypes:
-            topographical_fitnesses[genotype] = TopographicMap(self.width, self.height, genotype, self.smoothness)
-        return topographical_fitnesses
+            topographical_maps[genotype] = TopographicMap(self.width,
+                                                          self.height,
+                                                          genotype,
+                                                          self.smoothness,
+                                                          min_val=min_val,
+                                                          max_val=max_val,
+                                                          sum_val=sum_val)
+        return topographical_maps
     
     def generate_genotypes(self, alleles, loci):
 
@@ -84,21 +98,32 @@ class TopographicalSpeciation:
         return list(itertools.product(*all_locus_combinations))
     
     def run(self, generations, bottleneck_yr=None, bottleneck_N=None):
+        self.generate_fields()
+
         self.generations += generations
 
         for i in range(generations):
+            print(f"Generation {i}")
             self.calc_generation(i, bottleneck_yr, bottleneck_N)
         
         return self.cells
 
     def calc_generation(self, i, bottleneck_yr=None, bottleneck_N=None):
+
+        # Initialize the next generation, apply gene flow
+        if self.max_gene_flow_distance > 0:
+            self.cells = append_gene_flow_cells(self.cells, self.topographical_gene_flow_distance)
+        else:
+            self.cells = append_cells(self.cells) 
+
+        # For each cell in the map
         for x in range(self.width):
             for y in range(self.height):
                 cell = self.cells[y][x]
 
                 curr_genotypes_data = cell.gens_genotype_data[-1]
 
-                next_N = calc_next_N(calc_N(curr_genotypes_data), self.growth_rate, cell.carrying_capacity)
+                next_N = min(calc_N(curr_genotypes_data), cell.carrying_capacity)
 
                 # Apply evolutionary forces to genotypes in the current generation
                 curr_genotypes_data = adj_by_fitness(curr_genotypes_data, self.topographical_fitnesses, x, y)
@@ -110,10 +135,11 @@ class TopographicalSpeciation:
                     next_N = bottleneck_N
 
                 # Calculate the next generation
-                curr_genotypes_data = calc_next_genotypes_data(curr_genotypes_data, next_N)
+                curr_genotypes_data = calc_next_genotypes_data(curr_genotypes_data, next_N, self.growth_rate)
                 curr_genotypes_data = adj_by_mutation(curr_genotypes_data, self.mutation_rate)
 
-                cell.gens_genotype_data.append(curr_genotypes_data)
+                # Update the current cell's last genotypes data
+                cell.gens_genotype_data[-1] = curr_genotypes_data
 
 
     def animate_gens_genotypes(self, genotypes=None):
@@ -132,21 +158,20 @@ class TopographicalSpeciation:
 
 
 if __name__ == "__main__":
-    width = 100
-    height = 100
-    N = 20 * width * height
-    K = 200 * width * height
-    smoothness = 0.1
-    loci = 1
-    alleles = 2
+    ts = TopographicalSpeciation()
 
-    growth_rate = 1.1
-    mutation_rate=0.01
-    # max_drift=0.1
-    max_drift=0
+    ts.width = 20
+    ts.height = 20
+    ts.N = 20 * ts.width * ts.height
+    ts.K = 200 * ts.width * ts.height
+    ts.smoothness = 0.15
+    ts.loci = 1
+    ts.alleles = 2
+    ts.growth_rate = 1.1
+    ts.max_drift=0
+    ts.max_gene_flow_distance=3
+    ts.mutation_rate=0.01
 
-    ts = TopographicalSpeciation(width, height, N, K, smoothness, loci, alleles, growth_rate, max_drift, mutation_rate)
-
-    ts.run(20)
+    ts.run(30)
     ts.animate_gens_genotypes()
     ts.animate_gens_genotype_prevalence()
