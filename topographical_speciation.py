@@ -48,7 +48,15 @@ class TopographicalSpeciation:
         self.max_gene_flow_distance = 0
         self.mutation_rate = None
 
-        self.generations = 0
+        self._generations = 0
+        self._is_generated_fields = False
+
+        self.topographical_carrying_capacity = None
+        self.genotypes = None
+        self.cells = None
+        self.topographical_fitnesses = None
+        self.topographical_gene_flow_distance = None
+
 
         self.animator = Animator()
 
@@ -56,15 +64,9 @@ class TopographicalSpeciation:
         if self.width is None or self.height is None or self.N is None or self.K is None:
             raise ValueError("Width, height, N, and K must be set before generating fields.")
         
-        self.topographical_carrying_capacity = TopographicMap(self.width,
-                                                              self.height,
-                                                              'Carrying Capacity',
-                                                              self.smoothness,
-                                                              min_val=self.min_cell_K,
-                                                              sum_val=self.K)
+        self.topographical_carrying_capacity = TopographicMap(self.width, self.height, 'Carrying Capacity', self.smoothness, min_val=self.min_cell_K, sum_val=self.K)
         self.genotypes = self.generate_genotypes(self.alleles, self.loci)
         self.cells = self.generate_cells()
-
         self.topographical_fitnesses = self.generate_topographical_map_for_genotype()
         self.topographical_gene_flow_distance = self.generate_topographical_map_for_genotype(max_val=self.max_gene_flow_distance)
 
@@ -103,13 +105,13 @@ class TopographicalSpeciation:
 
         return list(itertools.product(*all_locus_combinations))
     
-    def run(self, generations, bottleneck_yr=None, bottleneck_N=None):
-        self.generate_fields()
+    def run(self, _generations, bottleneck_yr=None, bottleneck_N=None):
+        if not self._is_generated_fields:
+            self.generate_fields()
 
-        self.generations += generations
+        self._generations += _generations
 
-        for i in range(generations):
-            print(f"Generation {i}")
+        for i in range(_generations):
             self.calc_generation(i, bottleneck_yr, bottleneck_N)
         
         return self.cells
@@ -124,6 +126,7 @@ class TopographicalSpeciation:
 
         # For each cell in the map
         for x in range(self.width):
+            print(f"Generation {i}/{self._generations}, row {x}/{self.width}", end="\r")
             for y in range(self.height):
                 cell = self.cells[y][x]
 
@@ -154,33 +157,35 @@ class TopographicalSpeciation:
         if not genotypes:
             genotypes = self.genotypes
 
-        self.animator.animate_gens_genotypes(genotypes, self.cells, self.width, self.height, self.generations)
+        self.animator.animate_gens_genotypes(genotypes, self.cells, self.width, self.height, self._generations)
     
 
     def animate_gens_genotype_prevalence(self, genotypes=None, gradient=True):
         if not genotypes:
             genotypes = self.genotypes
         
-        self.animator.animate_gens_genotype_prevalence(genotypes, self.cells, self.width, self.height, self.generations, gradient)
+        self.animator.animate_gens_genotype_prevalence(genotypes, self.cells, self.width, self.height, self._generations, gradient)
 
 
 
 if __name__ == "__main__":
     ts = TopographicalSpeciation()
 
-    ts.width = 20
-    ts.height = 20
+    ts.width = 100
+    ts.height = ts.width
     ts.N = 20 * ts.width * ts.height
     ts.K = 200 * ts.width * ts.height
     ts.min_cell_K = 10
     ts.smoothness = 0.15
-    ts.loci = 1
+    ts.loci = 2
     ts.alleles = 2
     ts.growth_rate = 1.1
     ts.max_drift=0
-    ts.max_gene_flow_distance=3
+    ts.max_gene_flow_distance=ts.width//10
     ts.mutation_rate=0.01
 
-    ts.run(30)
+    ts.generate_fields()
+
+    ts.run(10)
     ts.animate_gens_genotypes()
-    # ts.animate_gens_genotype_prevalence()
+    ts.animate_gens_genotype_prevalence()
